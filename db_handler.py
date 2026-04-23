@@ -41,7 +41,7 @@ def add_customer(new_customer: Customer = None):
         new_customer and its attributes will never be None.
     """
 
-    # Parse street_number, street_name, city, and state zip
+    # Parse street_number, street_name, city, state, and zip_code
     parts = new_customer.address.split(', ')
     street_number, street_name = parts[0].split(' ', 1)
     city = parts[1]
@@ -74,7 +74,46 @@ def edit_customer(original_customer_id: str = None, new_customer: Customer = Non
     original_customer_id - A string containing the customer id for the customer to be edited.
     new_customer - A Customer object containing attributes to update. If an attribute is None, it should not be altered.
     """
-    raise NotImplementedError("you must implement this function")
+    # Fetch surrogate keys once so we can use them for all updates below
+    cur.execute(
+        "SELECT c_customer_sk, c_current_addr_sk FROM customer WHERE c_customer_id = ?",
+        (original_customer_id,)
+    )
+    cust_sk, addr_sk = cur.fetchone()
+
+    if new_customer.name is not None:
+        name_parts = new_customer.name.split(' ', 1)
+        first_name = name_parts[0]
+        last_name = name_parts[1] if len(name_parts) > 1 else ''
+        cur.execute(
+            "UPDATE customer SET c_first_name = ?, c_last_name = ? WHERE c_customer_sk = ?",
+            (first_name, last_name, cust_sk)
+        )
+
+    if new_customer.email is not None:
+        cur.execute(
+            "UPDATE customer SET c_email_address = ? WHERE c_customer_sk = ?",
+            (new_customer.email, cust_sk)
+        )
+
+    # Update customer_id last so original_customer_id stays valid for lookups above
+    if new_customer.customer_id is not None:
+        cur.execute(
+            "UPDATE customer SET c_customer_id = ? WHERE c_customer_sk = ?",
+            (new_customer.customer_id, cust_sk)
+        )
+
+    if new_customer.address is not None:
+        parts = new_customer.address.split(', ')
+        street_number, street_name = parts[0].split(' ', 1)
+        city = parts[1]
+        state, zip_code = parts[2].split(' ', 1)
+        cur.execute(
+            "UPDATE customer_address "
+            "SET ca_street_number = ?, ca_street_name = ?, ca_city = ?, ca_state = ?, ca_zip = ? "
+            "WHERE ca_address_sk = ?",
+            (street_number, street_name, city, state, zip_code, addr_sk)
+        )
 
 
 def rent_item(item_id: str = None, customer_id: str = None):
