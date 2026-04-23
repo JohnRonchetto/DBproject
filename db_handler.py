@@ -20,7 +20,9 @@ def add_item(new_item: Item = None):
     new_item - An Item object containing a new item to be inserted into the DB in the item table.
         new_item and its attributes will never be None.
     """
+
     cur.execute("SELECT MAX(i_item_sk) FROM item")
+    # or 0 handles edge case of empty table where MAX returns None
     new_sk = (cur.fetchone()[0] or 0) + 1
 
     cur.execute(
@@ -38,7 +40,8 @@ def add_customer(new_customer: Customer = None):
     new_customer - A Customer object containing a new customer to be inserted into the DB in the customer table.
         new_customer and its attributes will never be None.
     """
-    # Parse "street_number street_name, city, state zip"
+
+    # Parse street_number, street_name, city, and state zip
     parts = new_customer.address.split(', ')
     street_number, street_name = parts[0].split(' ', 1)
     city = parts[1]
@@ -54,7 +57,8 @@ def add_customer(new_customer: Customer = None):
 
     name_parts = new_customer.name.split(' ', 1)
     first_name = name_parts[0]
-    last_name = name_parts[1] if len(name_parts) > 1 else ''
+    # handle edge case of single word name with no last name
+    last_name = name_parts[1] if len(name_parts) > 1 else '' 
 
     cur.execute("SELECT MAX(c_customer_sk) FROM customer")
     new_cust_sk = (cur.fetchone()[0] or 0) + 1
