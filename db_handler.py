@@ -332,7 +332,55 @@ def get_filtered_rentals(filter_attributes: Rental = None,
     """
     Returns a list of Rental objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+
+    query = (
+        "SELECT TRIM(item_id), TRIM(customer_id), rental_date, due_date "
+        "FROM rental WHERE 1=1"
+    )
+    params = []
+
+    # Apply = filters from filter_attributes if provided
+    if filter_attributes is not None:
+        if filter_attributes.item_id is not None:
+            query += " AND item_id = ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.customer_id is not None:
+            query += " AND customer_id = ?"
+            params.append(filter_attributes.customer_id)
+        if filter_attributes.rental_date is not None:
+            query += " AND rental_date = ?"
+            params.append(filter_attributes.rental_date)
+        if filter_attributes.due_date is not None:
+            query += " AND due_date = ?"
+            params.append(filter_attributes.due_date)
+
+    # Apply inclusive date range filters 
+    if min_rental_date is not None:
+        query += " AND rental_date >= ?"
+        params.append(min_rental_date)
+    if max_rental_date is not None:
+        query += " AND rental_date <= ?"
+        params.append(max_rental_date)
+    if min_due_date is not None:
+        query += " AND due_date >= ?"
+        params.append(min_due_date)
+    if max_due_date is not None:
+        query += " AND due_date <= ?"
+        params.append(max_due_date)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    rentals = []
+    for r in rows:
+        rental = Rental(
+            item_id=r[0],
+            customer_id=r[1],
+            rental_date=str(r[2]),
+            due_date=str(r[3])
+        )
+        rentals.append(rental)
+    return rentals
 
 
 def get_filtered_rental_histories(filter_attributes: RentalHistory = None,
