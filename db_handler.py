@@ -144,7 +144,14 @@ def update_waitlist(item_id: str = None):
     """
     Removes person at position 1 and shifts everyone else down by 1.
     """
-    raise NotImplementedError("you must implement this function")
+    cur.execute(
+        "DELETE FROM waitlist WHERE item_id = ? AND place_in_line = 1",
+        (item_id,)
+    )
+    cur.execute(
+        "UPDATE waitlist SET place_in_line = place_in_line - 1 WHERE item_id = ?",
+        (item_id,)
+    )
 
 
 def return_item(item_id: str = None, customer_id: str = None):
