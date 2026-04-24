@@ -545,6 +545,8 @@ def line_length(item_id: str = None) -> int:
     """
     Returns how many people are on the waitlist for this item.
     """
+    cur.execute("SELECT COUNT(*) FROM waitlist WHERE item_id = ?", (item_id,))
+    return cur.fetchone()[0]
 
 
 def save_changes():
