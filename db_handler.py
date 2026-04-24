@@ -179,6 +179,8 @@ def grant_extension(item_id: str = None, customer_id: str = None):
     """
     Adds 14 days to the due_date.
     """
+    # Note that the helper_function.py already checks for max 28 day extention.
+    # Also use DATE_ADD, which is cleaner than getting date though python
     cur.execute(
         "UPDATE rental SET due_date = DATE_ADD(due_date, INTERVAL 14 DAY) "
         "WHERE item_id = ? AND customer_id = ?",
@@ -195,7 +197,76 @@ def get_filtered_items(filter_attributes: Item = None,
     """
     Returns a list of Item objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    # TRIM() strips trailing spaces from CHAR columns (MariaDB pads CHAR to fixed length)
+    # WHERE 1=1 lets us safely append AND clauses without special-casing the first condition
+    query = (
+        "SELECT TRIM(i_item_id), TRIM(i_product_name), TRIM(i_brand), TRIM(i_category), "
+        "TRIM(i_manufact), i_current_price, YEAR(i_rec_start_date), i_num_owned "
+        "FROM item WHERE 1=1"
+    )
+    params = []
+
+    # Apply equality/pattern filters from filter_attributes if provided
+    if filter_attributes is not None:
+        op = "LIKE" if use_patterns else "="
+
+        if filter_attributes.item_id is not None:
+            query += f" AND i_item_id {op} ?"
+            params.append(filter_attributes.item_id)
+        if filter_attributes.product_name is not None:
+            query += f" AND i_product_name {op} ?"
+            params.append(filter_attributes.product_name)
+        if filter_attributes.brand is not None:
+            query += f" AND i_brand {op} ?"
+            params.append(filter_attributes.brand)
+        if filter_attributes.category is not None:
+            query += f" AND i_category {op} ?"
+            params.append(filter_attributes.category)
+        if filter_attributes.manufact is not None:
+            query += f" AND i_manufact {op} ?"
+            params.append(filter_attributes.manufact)
+        if filter_attributes.current_price != -1:
+            query += " AND i_current_price = ?"
+            params.append(filter_attributes.current_price)
+        if filter_attributes.num_owned != -1:
+            query += " AND i_num_owned = ?"
+            params.append(filter_attributes.num_owned)
+        if filter_attributes.start_year != -1:
+            query += " AND YEAR(i_rec_start_date) = ?"
+            params.append(filter_attributes.start_year)
+
+    # Apply inclusive range filters (-1 means not provided, so skip)
+    if min_price != -1:
+        query += " AND i_current_price >= ?"
+        params.append(min_price)
+    if max_price != -1:
+        query += " AND i_current_price <= ?"
+        params.append(max_price)
+    if min_start_year != -1:
+        query += " AND YEAR(i_rec_start_date) >= ?"
+        params.append(min_start_year)
+    if max_start_year != -1:
+        query += " AND YEAR(i_rec_start_date) <= ?"
+        params.append(max_start_year)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    # Build and return a list of Item objects from the query results
+    items = []
+    for r in rows:
+        item = Item(
+            item_id=r[0],
+            product_name=r[1],
+            brand=r[2],
+            category=r[3],
+            manufact=r[4],
+            current_price=r[5],
+            start_year=r[6],
+            num_owned=r[7]
+        )
+        items.append(item)
+    return items
 
 
 def get_filtered_customers(filter_attributes: Customer = None, use_patterns: bool = False) -> list[Customer]:
