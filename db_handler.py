@@ -180,7 +180,7 @@ def grant_extension(item_id: str = None, customer_id: str = None):
     Adds 14 days to the due_date.
     """
     # Note that the helper_function.py already checks for max 28 day extention.
-    # Also use DATE_ADD, which is cleaner than getting date though python
+    # Also use DATE_ADD(), which is cleaner than getting date though python
     cur.execute(
         "UPDATE rental SET due_date = DATE_ADD(due_date, INTERVAL 14 DAY) "
         "WHERE item_id = ? AND customer_id = ?",
@@ -197,8 +197,8 @@ def get_filtered_items(filter_attributes: Item = None,
     """
     Returns a list of Item objects matching the filters.
     """
-    # TRIM() strips trailing spaces from CHAR columns (MariaDB pads CHAR to fixed length)
-    # WHERE 1=1 lets us safely append AND clauses without special-casing the first condition
+    # Use TRIM() which strips trailing spaces from CHAR columns
+    # WHERE 1=1 lets safely append AND clauses without special casing the first condition
     query = (
         "SELECT TRIM(i_item_id), TRIM(i_product_name), TRIM(i_brand), TRIM(i_category), "
         "TRIM(i_manufact), i_current_price, YEAR(i_rec_start_date), i_num_owned "
@@ -206,7 +206,7 @@ def get_filtered_items(filter_attributes: Item = None,
     )
     params = []
 
-    # Apply equality/pattern filters from filter_attributes if provided
+    # Apply LIKE/= pattern filters from filter_attributes if provided
     if filter_attributes is not None:
         op = "LIKE" if use_patterns else "="
 
@@ -252,7 +252,7 @@ def get_filtered_items(filter_attributes: Item = None,
     cur.execute(query, params)
     rows = cur.fetchall()
 
-    # Build and return a list of Item objects from the query results
+    # Return list of Item from the query results
     items = []
     for r in rows:
         item = Item(
@@ -273,7 +273,55 @@ def get_filtered_customers(filter_attributes: Customer = None, use_patterns: boo
     """
     Returns a list of Customer objects matching the filters.
     """
-    raise NotImplementedError("you must implement this function")
+    # Name lives in two columns, address lives across five columns in a separate table
+    # CONCAT + TRIM assembles them into the format the Customer model expects
+    # LEFT JOIN so customers without an address still appear
+    query = (
+        "SELECT TRIM(c.c_customer_id), "
+        "CONCAT(TRIM(c.c_first_name), ' ', TRIM(c.c_last_name)), "
+        "CONCAT(TRIM(ca.ca_street_number), ' ', TRIM(ca.ca_street_name), ', ', "
+        "TRIM(ca.ca_city), ', ', TRIM(ca.ca_state), ' ', TRIM(ca.ca_zip)), "
+        "TRIM(c.c_email_address) "
+        "FROM customer c "
+        "LEFT JOIN customer_address ca ON c.c_current_addr_sk = ca.ca_address_sk "
+        "WHERE 1=1"
+    )
+    params = []
+
+    if filter_attributes is not None:
+        op = "LIKE" if use_patterns else "="
+
+        if filter_attributes.customer_id is not None:
+            query += f" AND c.c_customer_id {op} ?"
+            params.append(filter_attributes.customer_id)
+        # Filter on the assembled full name
+        if filter_attributes.name is not None:
+            query += f" AND CONCAT(TRIM(c.c_first_name), ' ', TRIM(c.c_last_name)) {op} ?"
+            params.append(filter_attributes.name)
+        # Filter on the assembled full address
+        if filter_attributes.address is not None:
+            query += (
+                f" AND CONCAT(TRIM(ca.ca_street_number), ' ', TRIM(ca.ca_street_name), ', ', "
+                f"TRIM(ca.ca_city), ', ', TRIM(ca.ca_state), ' ', TRIM(ca.ca_zip)) {op} ?"
+            )
+            params.append(filter_attributes.address)
+        if filter_attributes.email is not None:
+            query += f" AND c.c_email_address {op} ?"
+            params.append(filter_attributes.email)
+
+    cur.execute(query, params)
+    rows = cur.fetchall()
+
+    customers = []
+    for r in rows:
+        customer = Customer(
+            customer_id=r[0],
+            name=r[1],
+            address=r[2],
+            email=r[3]
+        )
+        customers.append(customer)
+    return customers
 
 
 def get_filtered_rentals(filter_attributes: Rental = None,
